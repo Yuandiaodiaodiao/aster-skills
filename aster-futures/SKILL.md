@@ -1,5 +1,5 @@
 ---
-name: futures
+name: aster-futures
 description: Aster Futures request using the Aster API. Authentication uses EIP-712 ECDSA signing with API wallet. Supports mainnet.
 metadata:
   version: 1.0.0

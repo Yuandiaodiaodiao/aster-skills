@@ -1,5 +1,5 @@
 ---
-name: spot
+name: aster-spot
 description: Aster Spot request using the Aster API. Authentication requires API key and secret key (HMAC SHA256). Supports mainnet.
 metadata:
   version: 1.0.0
