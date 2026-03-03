@@ -11,6 +11,68 @@ license: MIT
 
 Futures request on Aster using authenticated API endpoints. Authentication uses EIP-712 ECDSA signing with API wallet (main wallet + signer wallet). Return the result in JSON format.
 
+## Data Fetching Guidelines (CRITICAL)
+
+**NEVER truncate JSON responses** with `head -c`, `head -n`, or similar — truncated JSON is corrupted and will produce wrong results.
+
+### Mandatory Rules
+
+1. **Always specify `symbol` parameter** when querying a specific trading pair. Many endpoints return ALL symbols when `symbol` is omitted, producing responses of 100KB+.
+2. **Always use `limit` parameter** to constrain result size. Use the smallest limit that satisfies the request (e.g., `limit=5` instead of default 500).
+3. **Use `jq` to extract fields** — never parse raw mega-JSON visually. Pipe through `jq` to select only needed data.
+
+### Progressive Data Exploration Strategy
+
+When the user asks a broad question (e.g., "what futures are available?"), use a **layered approach**:
+
+1. **Step 1 — Get lightweight summary first:**
+   ```bash
+   # Get just the symbol list, not full exchangeInfo
+   curl -s "https://fapi.asterdex.com/fapi/v3/exchangeInfo" | jq '[.symbols[].symbol]'
+   ```
+
+2. **Step 2 — Confirm scope with user** before fetching detailed data for many symbols.
+
+3. **Step 3 — Fetch details for specific symbols only:**
+   ```bash
+   # Get price for ONE symbol, not all
+   curl -s "https://fapi.asterdex.com/fapi/v3/ticker/price?symbol=BTCUSDT"
+   ```
+
+### Endpoints That Return Dangerously Large Data (without symbol filter)
+
+| Endpoint | Without `symbol` | With `symbol` |
+|----------|------------------|---------------|
+| `/fapi/v3/exchangeInfo` | ALL symbols + filters (100KB+) | N/A — use `jq` to filter |
+| `/fapi/v3/ticker/24hr` | ALL symbols (50KB+) | Single object (~500B) |
+| `/fapi/v3/ticker/price` | ALL symbols (10KB+) | Single object (~80B) |
+| `/fapi/v3/ticker/bookTicker` | ALL symbols (20KB+) | Single object (~150B) |
+| `/fapi/v3/premiumIndex` | ALL symbols (30KB+) | Single object (~300B) |
+| `/fapi/v3/depth` | N/A (symbol required) | Varies by `limit`: use `limit=5` for overview |
+| `/fapi/v3/klines` | N/A (symbol required) | Default 500 candles — always set `limit` |
+| `/fapi/v3/trades` | N/A (symbol required) | Default 500 trades — always set `limit` |
+
+### Example: Safe vs Unsafe
+
+```bash
+# BAD — returns ALL symbols, then truncates = corrupted JSON
+curl -s ".../fapi/v3/ticker/price" | head -c 5000
+
+# GOOD — returns single symbol, complete JSON
+curl -s ".../fapi/v3/ticker/price?symbol=BTCUSDT"
+
+# BAD — 500 candles by default
+curl -s ".../fapi/v3/klines?symbol=BTCUSDT&interval=1h"
+
+# GOOD — only 5 candles
+curl -s ".../fapi/v3/klines?symbol=BTCUSDT&interval=1h&limit=5"
+
+# GOOD — extract just symbol names from exchangeInfo
+curl -s ".../fapi/v3/exchangeInfo" | jq '[.symbols[] | {symbol, status}]'
+```
+
+---
+
 ## Quick Reference
 
 | Endpoint | Description | Required | Optional | Authentication |
